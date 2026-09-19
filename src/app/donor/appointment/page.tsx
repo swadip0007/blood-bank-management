@@ -154,12 +154,12 @@ export default function DonorAppointmentPage() {
 
       const { error: insertError } = await supabase.from('request').insert([
         {
-          hospital_id: selectedAppointment.hospital_id,
+          hospital_id: selectedAppointment.hospital_id || '',
           donor_id: donorId,
-          blood_group: formData.blood_group,
-          quantity: formData.quantity,
-          contact_number: formData.contact_number,
-          email_id: formData.email_id,
+          blood_group: formData.blood_group || null,
+          quantity: formData.quantity ? parseInt(formData.quantity, 10) || null : null,
+          contact_number: formData.contact_number ? parseInt(formData.contact_number.replace(/\D/g, ''), 10) || null : null,
+          email_id: formData.email_id || null,
           requested_date: new Date().toISOString(),
           appointment_id: selectedAppointment.id,
           status: 'Pending',

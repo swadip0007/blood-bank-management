@@ -112,7 +112,7 @@ export const registerSchema = z.object({
       'Please enter a valid Indian phone number (e.g., +91 98765 43210)'
     ),
   role: z.enum(['Admin', 'Donor', 'Hospital'], {
-    errorMap: () => ({ message: 'Please select a valid role' })
+    message: 'Please select a valid role'
   }),
   address: z
     .string()

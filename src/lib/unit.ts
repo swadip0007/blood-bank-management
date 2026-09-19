@@ -39,9 +39,12 @@ const getBloodGroupColor = (bloodGroup: string) => {
   }
 };
 
-export default {
+const unitUtils = {
   isEligibleToDonate,
   getDaysSinceLastDonation,
   calculateAge,
   getBloodGroupColor,
 };
+
+export default unitUtils;
+

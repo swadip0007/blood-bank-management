@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 
 const donorSchema = z.object({
-  blood_group: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
+  blood_group: z.string().min(1, 'Please select your blood group'),
   id: z.string().optional(),
   last_donation_date: z
     .string()
@@ -48,7 +48,7 @@ export default function DonorProfilePage() {
     reset,
     formState: { errors },
   } = useForm<DonorForm>({
-    resolver: zodResolver(donorSchema),
+    resolver: zodResolver(donorSchema) as any,
     defaultValues: {
       blood_group: '',
       last_donation_date: '',
@@ -60,12 +60,13 @@ export default function DonorProfilePage() {
   }, [user])
 
   const fetchDonorData = async () => {
+    if (!user) return
     try {
       setLoading(true)
       const { data, error } = await supabase
         .from('donor')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .maybeSingle()
 
       if (error) throw error
@@ -187,7 +188,7 @@ export default function DonorProfilePage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit as any)}>
           <Grid container spacing={2}>
             {/* Blood Group */}
             <Grid item xs={12}>

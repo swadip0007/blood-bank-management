@@ -120,7 +120,7 @@ export default function AppointmentPage() {
       const { error } = await supabase.from('appointment').insert([
         {
           blood_group: bloodGroup || null,
-          contact_number: contact || null,
+          contact_number: contact ? parseInt(contact.replace(/\D/g, ''), 10) || null : null,
           scheduled_date: scheduledDate,
           user_id: user.id,
           hospital_id: selectedHospitalId,

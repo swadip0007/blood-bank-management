@@ -30,10 +30,10 @@ const Chart = dynamic(() => import('react-apexcharts'), { ssr: false })
 type BloodStock = {
   id: string
   blood_group: string
-  quantity: number
-  expiry_date: string
-  status: string
-  user_id: string
+  quantity: number | null
+  expiry_date: string | null
+  status: string | null
+  user_id: string | null
 }
 
 export default function BloodStockPage() {
@@ -143,9 +143,9 @@ export default function BloodStockPage() {
     setSelectedId(row.id)
     setFormData({
       blood_group: row.blood_group,
-      quantity: String(row.quantity),
-      expiry_date: row.expiry_date,
-      status: row.status,
+      quantity: row.quantity !== null ? String(row.quantity) : '',
+      expiry_date: row.expiry_date || '',
+      status: row.status || '',
     })
     setOpenDialog(true)
   }
@@ -170,7 +170,7 @@ export default function BloodStockPage() {
       field: 'expiry_date',
       headerName: 'Expiry Date',
       flex: 1,
-      valueFormatter: (params) => new Date(params.value).toLocaleDateString(),
+      valueFormatter: (value: any) => (value ? new Date(value).toLocaleDateString() : ''),
     },
     { field: 'status', headerName: 'Status', flex: 1 },
     {

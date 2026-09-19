@@ -49,7 +49,7 @@ export default function SettingsPage() {
     setValue,
     formState: { errors },
   } = useForm<HospitalForm>({
-    resolver: zodResolver(hospitalSchema),
+    resolver: zodResolver(hospitalSchema) as any,
     defaultValues: {
       name: '',
       address: '',
@@ -64,6 +64,7 @@ export default function SettingsPage() {
   }, [user])
 
   const fetchHospital = async () => {
+    if (!user) return
     try {
       setLoading(true)
       const { data, error } = await supabase
@@ -74,12 +75,19 @@ export default function SettingsPage() {
 
       if (error) throw error
       if (data) {
-        setHospital(data)
+        setHospital({
+          id: data.id,
+          name: data.hospital_name,
+          address: data.address || '',
+          contact_number: data.contact_number ? String(data.contact_number) : '',
+          profile_pic: data.profile_pic || '',
+          user_id: data.user_id || '',
+        })
         reset({
           name: data.hospital_name,
-          address: data.address,
-          contact_number: data.contact_number,
-          profile_pic: data.profile_pic,
+          address: data.address || '',
+          contact_number: data.contact_number ? String(data.contact_number) : '',
+          profile_pic: data.profile_pic || '',
         })
       }
     } catch (err: any) {
@@ -150,13 +158,19 @@ export default function SettingsPage() {
 
 
 
+      if (!user) throw new Error('User not authenticated')
+
+      const parsedContact = formData.contact_number
+        ? parseInt(formData.contact_number.replace(/\D/g, ''), 10) || null
+        : null
+
       if (hospital?.id) {
         const { error } = await supabase
           .from('hospital')
           .update({
             hospital_name: formData.name,
             address: formData.address,
-            contact_number: formData.contact_number,
+            contact_number: parsedContact,
             profile_pic: imageUrl,
           })
           .eq('id', hospital.id)
@@ -168,7 +182,7 @@ export default function SettingsPage() {
             {
               hospital_name: formData.name,
               address: formData.address,
-              contact_number: formData.contact_number,
+              contact_number: parsedContact,
               profile_pic: imageUrl,
               user_id: user.id,
             },
@@ -176,7 +190,16 @@ export default function SettingsPage() {
           .select()
           .single()
         if (error) throw error
-        setHospital(data)
+        if (data) {
+          setHospital({
+            id: data.id,
+            name: data.hospital_name,
+            address: data.address || '',
+            contact_number: data.contact_number ? String(data.contact_number) : '',
+            profile_pic: data.profile_pic || '',
+            user_id: data.user_id || '',
+          })
+        }
       }
 
       setSuccess(true)
@@ -224,7 +247,7 @@ export default function SettingsPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit as any)}>
           <Grid container spacing={2}>
             {/* ✅ Profile Picture Section */}
             <Grid item xs={12} sx={{ textAlign: 'center' }}>

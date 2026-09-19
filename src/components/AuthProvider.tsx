@@ -13,7 +13,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signUp: (data: SignUpData) => Promise<{ error?: string }>
   signOut: () => Promise<void>
-  refreshProfile: () => Promise<void>
+  refreshProfile: (targetUser?: User | null) => Promise<void>
 }
 
 interface SignUpData {
@@ -43,14 +43,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true)
 
   // ✅ Refresh user profile from Supabase
-  const refreshProfile = async () => {
-    if (!user) return
+  const refreshProfile = async (targetUser?: User | null) => {
+    const activeUser = targetUser ?? user
+    if (!activeUser) return
     try {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user.id)
-        .single()
+        .or(`user_id.eq.${activeUser.id},id.eq.${activeUser.id}`)
+        .maybeSingle()
 
       if (error) throw error
       setProfile(data)
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (data.user) {
         setUser(data.user)
-        await refreshProfile()
+        await refreshProfile(data.user)
       }
 
       return {}
@@ -135,15 +136,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // ✅ Initialize session & listen for auth state changes
   useEffect(() => {
-    
+    // Safety fallback so the UI never gets stuck on the loading spinner
+    const timeoutTimer = setTimeout(() => {
+      setLoading(false)
+    }, 2500)
+
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth change:", event, session?.user?.email)
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          setTimeout(async () => {
-            await refreshProfile()
-          }, 1000)
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        if (currentUser) {
+          await refreshProfile(currentUser)
         } else {
           setProfile(null)
         }
@@ -151,18 +155,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     )
 
-    return () => listener.subscription.unsubscribe()
-  }, [])
-   useEffect(() => {
     const initSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession()
         if (error) throw error
 
-        setUser(data.session?.user ?? null)
+        const currentUser = data.session?.user ?? null
+        setUser(currentUser)
 
-        if (data.session?.user) {
-          await refreshProfile()
+        if (currentUser) {
+          await refreshProfile(currentUser)
         }
       } catch (err) {
         console.error("Error fetching session:", err)
@@ -173,25 +175,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     initSession()
 
-
+    return () => {
+      clearTimeout(timeoutTimer)
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        flexDirection="column"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-        bgcolor="background.default"
-        gap={2}
-      >
-        <CircularProgress color="primary" />
-        <Typography color="text.secondary">Loading...</Typography>
-      </Box>
-    )
-  }
 
   const value: AuthContextType = {
     user,

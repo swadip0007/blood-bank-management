@@ -76,11 +76,9 @@ export default function RegisterPage() {
       const { data, error } = await supabase.auth.signUp({
         email: _data.email.toLowerCase().trim(),
         password: _data.password,
-        phone: formattedPhone,
         options: {
-          emailRedirectTo: "http://localhost:3000/welcome",
+          emailRedirectTo: `${window.location.origin}/welcome`,
           data: {
-
             full_name: _data.full_name.trim(),
             phone: formattedPhone,
             role: _data.role,

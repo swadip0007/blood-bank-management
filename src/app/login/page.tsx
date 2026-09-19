@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/AuthProvider";
 import {
   Box,
   Paper,
@@ -13,13 +14,32 @@ import {
   CircularProgress,
   Alert,
   Link as MuiLink,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, profile, refreshProfile } = useAuth();
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Automatically redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      const role =
+        user.user_metadata?.role?.toLowerCase() ||
+        profile?.role?.toLowerCase();
+      if (role === "hospital" || role === "admin") {
+        router.push("/hospital");
+      } else {
+        router.push("/donor");
+      }
+    }
+  }, [user, profile, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,29 +52,91 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
+      const email = formData.email.trim().toLowerCase();
+      const password = formData.password;
+
+      if (!email || !password) {
+        setError("Please enter both email and password.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (error) throw error;
-
-      const user = data.user;
-      if (!user) throw new Error("No user found");
-
-      const role = user.user_metadata?.role?.toLocaleLowerCase();
-
-      if (role === "donor") {
-        router.push("/donor");
-      } else if (role === "hospital") {
-        router.push("/hospital");
+      if (authError) {
+        const msg = authError.message.toLowerCase();
+        if (msg.includes("invalid login credentials")) {
+          throw new Error(
+            "Invalid email or password. Please verify your credentials or register a new account."
+          );
+        }
+        if (msg.includes("email not confirmed")) {
+          throw new Error(
+            "Your email has not been confirmed yet. Please check your inbox for the confirmation email, or disable email confirmation in your Supabase Dashboard (Authentication > Providers > Email)."
+          );
+        }
+        throw authError;
       }
+
+      const loggedInUser = data.user;
+      if (!loggedInUser) throw new Error("No user found.");
+
+      // Refresh profile in AuthProvider
+      await refreshProfile(loggedInUser);
+
+      // Determine role from user_metadata first
+      let role = loggedInUser.user_metadata?.role?.toLowerCase();
+
+      // If not in user_metadata, check profiles table
+      if (!role) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("role")
+          .or(`user_id.eq.${loggedInUser.id},id.eq.${loggedInUser.id}`)
+          .maybeSingle();
+
+        if (profileData?.role) {
+          role = profileData.role.toLowerCase();
+        }
+      }
+
+      // If still not found, check donor or hospital tables directly
+      if (!role) {
+        const { data: donor } = await supabase
+          .from("donor")
+          .select("id")
+          .eq("user_id", loggedInUser.id)
+          .maybeSingle();
+        if (donor) role = "donor";
+      }
+
+      if (!role) {
+        const { data: hospital } = await supabase
+          .from("hospital")
+          .select("id")
+          .eq("user_id", loggedInUser.id)
+          .maybeSingle();
+        if (hospital) role = "hospital";
+      }
+
+      // Redirect appropriately
+      if (role === "hospital" || role === "admin") {
+        router.push("/hospital");
+      } else {
+        router.push("/donor");
+      }
+
+      router.refresh();
     } catch (err: any) {
+      console.error("Login failed:", err);
       setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
-  }; 
+  };
 
   return (
     <Box
@@ -109,6 +191,7 @@ export default function LoginPage() {
             name="email"
             type="email"
             required
+            autoComplete="email"
             value={formData.email}
             onChange={handleChange}
             margin="normal"
@@ -118,11 +201,25 @@ export default function LoginPage() {
             fullWidth
             label="Password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
+            autoComplete="current-password"
             value={formData.password}
             onChange={handleChange}
             margin="normal"
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
 
           <Button
@@ -138,32 +235,22 @@ export default function LoginPage() {
               py: 1.2,
               borderRadius: 2,
               textTransform: "none",
+              fontSize: "1rem",
+              fontWeight: 600,
             }}
           >
-            {isLoading ? <CircularProgress size={24} color="inherit" /> : "Sign in"}
+            {isLoading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              "Sign in"
+            )}
           </Button>
 
           <Typography
             variant="body2"
             textAlign="center"
             color="text.secondary"
-            sx={{ mt: 1 }}
-          >
-            <MuiLink
-              component={Link}
-              href="/forgot-password"
-              color="error.main"
-              underline="hover"
-            >
-              Forgot password?
-            </MuiLink>
-          </Typography>
-
-          <Typography
-            variant="body2"
-            textAlign="center"
-            color="text.secondary"
-            sx={{ mt: 1.5 }}
+            sx={{ mt: 2 }}
           >
             Don’t have an account?{" "}
             <MuiLink
@@ -171,6 +258,7 @@ export default function LoginPage() {
               href="/register"
               color="error.main"
               underline="hover"
+              fontWeight={600}
             >
               Create one
             </MuiLink>
@@ -180,3 +268,4 @@ export default function LoginPage() {
     </Box>
   );
 }
+
