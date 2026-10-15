@@ -86,8 +86,19 @@ export default function RegisterPage() {
           }
         }
       })
+      if (error) {
+        setError(error.message)
+        return
+      }
+
       if (data.user) {
-        await supabase.from('profiles').insert({
+        // If Supabase has email confirmation enabled and user already exists, identities will be an empty array
+        if (data.user.identities && data.user.identities.length === 0) {
+          setError('An account with this email address already exists. Please log in instead.')
+          return
+        }
+
+        const { error: profileError } = await supabase.from('profiles').insert({
           user_id: data.user.id,
           full_name: _data.full_name.trim(),
           phone: formattedPhone,
@@ -95,21 +106,16 @@ export default function RegisterPage() {
           address: _data.address?.trim() || '',
           email: _data.email.toLowerCase().trim()
         })
-        // router.push('/login')
+
+        if (profileError) {
+          console.error("Profile insert error:", profileError)
+        }
       }
 
-
-
-      console.log(error, "sign up")
-
-      if (error) {
-        setError(error.message)
-      } else {
-        setSuccess(
-          'Registration successful! Please check your email to verify your account before logging in.'
-        )
-        reset()
-      }
+      setSuccess(
+        'Registration successful! Please check your email to verify your account before logging in.'
+      )
+      reset()
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
       console.error('Registration error:', err)
